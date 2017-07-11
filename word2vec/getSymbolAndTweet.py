@@ -34,6 +34,7 @@ from gensim.models.word2vec import LineSentence
 import codecs
 import sys
 import json
+import numpy as np
 
 #reload(sys)
 #sys.setdefaultencoding('utf8')
@@ -64,6 +65,8 @@ def parse_argv():
     o = Options()
     o.add('--src', metavar='URI', type=str,
         default='s3://aws-nyc-taxi-data', help="data source directory")
+    o.add('--size', metavar='vector_size', type=str,
+    	default=32, help="word vector dimention")
     #o.add('-s', '--start',  metavar='NUM', type=int,
     #    default=0, help="start record index")
     #o.add('-e', '--end',  metavar='NUM', type=int,
@@ -102,15 +105,16 @@ class TweetPreProcess(object):
 		self.model = None
 
 	def tokenize_sentence(self):
-
-		for date in self.tweetDic:
-			sentStem = []
-			self.sents[date] = []
-			for t in self.tweetDic[date]:		
-				sent = nltk.sent_tokenize(t)
-				sentStem = self.tokenize_and_stem(sent)
-				for s in sentStem:
-					self.sents[date].append(s)
+		for symbol in self.tweetDic:
+			self.sents[symbol] = {}
+			for date in self.tweetDic[symbol]:
+				sentStem = []
+				self.sents[symbol][date] = []
+				for t in self.tweetDic[symbol][date]:		
+					sent = nltk.sent_tokenize(t)
+					sentStem = self.tokenize_and_stem(sent)
+					for s in sentStem:
+						self.sents[symbol][date].append(s)
 		
 	def tokenize_and_stem(self, sentences):
 		sents = []
@@ -124,19 +128,66 @@ class TweetPreProcess(object):
 
 		return sents
 
-	def load_word2vec_model(self):
+	def load_word2vec_model(self, size=100):
 		if self.model is None:
-			self.train_word2vec()
+			self.train_word2vec(size)
 		else:
 			self.model = Word2Vec.load('tweet_model')
 
-	def train_word2vec(self):
-		sentences_tokens = []
-		for d in self.sents:
-			for s in self.sents[d]:
-				sentences_tokens.append(s)
+		return self.model
 
-		self.model = Word2Vec(sentences_tokens, size=100, window=5, min_count=5, workers=4)
+	def buildWordVector(self, text, size=32):
+		#print(text)
+		tmp = np.zeros(size)
+		vec = tmp.reshape((1, size))
+		count = 0.
+		for word in text:
+			try:
+				vec += self.model[word].reshape((1, size))
+				count += 1.
+			except KeyError:
+				continue
+		if count != 0:
+			vec /= count
+		return vec
+
+	def generate_tweet_vectors(self, size=32):
+		for symbol in self.tweetDic:
+			self.vecList[symbol] = {}
+			for d in self.tweetDic[symbol]:
+				if d not in self.vecList[symbol]:
+					self.vecList[symbol][d] = []
+
+				for sent in self.tweetDic[symbol][d]:
+					#if d in self.priceDic[symbol]:
+					#print(sent)
+					#print(self.buildWordVector(sent))
+					#print(self.priceDic[symbol][d]['increases'])
+					self.vecList[symbol][d].append([self.buildWordVector(sent), self.priceDic[symbol][d]['increases']])
+
+	def generate_vector_file(self):
+		with open("vector.txt", 'w') as f: 
+			for symbol in self.vecList:
+				for d in self.vecList[symbol]:
+					for v in self.vecList[symbol][d]:
+						#for v in vecList:
+						#print(v[0].reshape(1, 100))
+						f.write("{")
+						for item in v[0][0]:
+							#print(item)
+							f.write(str(item) + " ")
+							f.write(": ")
+							f.write(str(v[1]))
+						f.write("}\n")
+
+	def train_word2vec(self, size):
+		sentences_tokens = []
+		for symbol in self.sents:
+			for d in self.sents[symbol]:
+				for s in self.sents[symbol][d]:
+					sentences_tokens.append(s)
+
+		self.model = Word2Vec(sentences_tokens, size=size, window=5, min_count=5, workers=4)
 		self.model.save("tweet_model")
 		return self.model
 
@@ -166,6 +217,11 @@ class TweetPreProcess(object):
 	        	symbol = file.split(".")[0]
 	        	print("Processing tweets for stock %s", symbol)
 	        	info(" read: file://%s" % tweet_file)
+
+	        	# Create a symbol entry in tweets dictionary
+	        	if symbol not in self.tweetDic:
+	        		self.tweetDic[symbol] = {}
+
 	        	data = codecs.open(tweet_file, 'r', encoding='utf-8', errors='ignore')
 	        	data.readline()
 	        	for line in data:
@@ -183,10 +239,10 @@ class TweetPreProcess(object):
 			    	if (is_holiday):
 			    		continue
 
-			    	if str(tweet_date) not in self.tweetDic:
-			    		self.tweetDic[str(tweet_date)] = []
+			    	if str(tweet_date) not in self.tweetDic[symbol]:
+			    		self.tweetDic[symbol][str(tweet_date)] = []
 
-			    	self.tweetDic[str(tweet_date)].append(tweet)
+			    	self.tweetDic[symbol][str(tweet_date)].append(tweet)
 
 			    	today = datetime.date.today()
 			    	
@@ -221,7 +277,7 @@ class TweetPreProcess(object):
 	        this_open_date = datetime.datetime.strptime(d[0], "%d-%b-%y").date()
 	        last_open_date = this_open_date - datetime.timedelta(days = 1)
 	        if (last_open_date.weekday() >= 5):
-	        	print("Get data from last week open date")
+	        	#print("Get data from last week open date")
 	        	last_open_date = last_open_date - datetime.timedelta(last_open_date.weekday() - 5 + 1)
 
 	        #print(last_open_date)
@@ -246,7 +302,11 @@ class TweetPreProcess(object):
 														  'low':    float(d[3]),
 														  'close':  float(d[4]),
 														  'increases' : increases}
-	        return self.priceDic[ticker]
+
+		f = open("PriceDic.txt", 'w')
+		f.write(ticker + " : " + str(this_open_date) + " : " + str(self.priceDic[ticker][str(this_open_date)]))
+
+	    return self.priceDic[ticker]
 
 	def getPriceByDate(self, ticker, date, offset):
 	    # offset is for choosing the price of date relative to
@@ -276,7 +336,9 @@ class TweetPreProcess(object):
 	def main(self):
 		self.getSymbolAndTweet("file:///Users/hpnhxxwn/Desktop/proj/cs502-capstone/aws_capstone_private/word2vec/CSV2/")
 		self.tokenize_sentence()
-		self.train_word2vec()
+		self.load_word2vec_model(size=self.opts.size)
+		self.generate_tweet_vectors(size=self.opts.size)
+		self.generate_vector_file()
 
 if __name__ == "__main__":
 	p = TweetPreProcess(parse_argv())
