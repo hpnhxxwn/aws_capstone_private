@@ -176,8 +176,8 @@ class TweetPreProcess(object):
 						for item in v[0][0]:
 							#print(item)
 							f.write(str(item) + " ")
-							f.write(": ")
-							f.write(str(v[1]))
+						f.write(": ")
+						f.write(str(v[1]))
 						f.write("}\n")
 
 	def train_word2vec(self, size):
