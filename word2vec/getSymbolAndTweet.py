@@ -163,7 +163,8 @@ class TweetPreProcess(object):
 					#print(sent)
 					#print(self.buildWordVector(sent))
 					#print(self.priceDic[symbol][d]['increases'])
-					self.vecList[symbol][d].append([self.buildWordVector(sent), self.priceDic[symbol][d]['increases']])
+					if d in self.priceDic[symbol]:
+						self.vecList[symbol][d].append([self.buildWordVector(sent), self.priceDic[symbol][d]['increases']])
 
 	def generate_vector_file(self):
 		with open("vector.txt", 'w') as f: 
