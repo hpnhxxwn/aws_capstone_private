@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<meta charset="utf-8">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/readable/bootstrap.min.css">
+<link rel="stylesheet" href="/nvd3/nv.d3.min.css">
+<!-- <title>Stock Visualizer</title> -->
+
+<style>
+body {
+  background-color: #2F69C6;
+  font-size: 12px;
+  padding-top: 20px;
+}
+.bottom-border {
+  border-radius: 0px;
+  border-bottom: 2px solid #000000;
+}
+input {
+    width: 80%;
+}
+#average-score {
+  vertical-align: top;
+  font-size: 1.5em;
+  font-weight: bold;
+}
+#tweet {
+  font-size: 0.7em;
+}
+#user-name {
+  font-size: 0.7em;
+}
+#heading{
+  background-color: #2F69C6;
+  font-weight: bold;
+  font-size: 0.8em;
+}
+h2.title {
+  color: white;
+  text-decoration: underline;
+  font-size: 2.0em;
+}
+h2 {
+  display: block;
+  font-size: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 0;
+  margin-right: 0;
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+  <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script> 
+  <script src="https://code.jquery.com/jquery-1.11.1.js"></script> 
+  
+  <!-- QQQQQ -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/jquery/jquery.min.js"></script>
+  
+  <script src="/d3/d3.min.js"></script>
+  <script src="/nvd3/nv.d3.min.js"></script>
+  <script src="/bootstrap/js/bootstrap.min.js"></script>
+  <script src="/main.js"></script>
+
+<div class="row">
+  <div class="col-xs-12 text-center">
+    <h2 class="title">Social sentiment on Twitter</h2>
+  </div>
+</div>
+<br />
+
+<div class="row">
+  <div class="col-xs-4 col-xs-offset-1 well">
+    <div class="row">
+      <div class="col-xs-12">
+        <div class="row">
+          <div class="col-xs-6">
+            <div class="row">
+              <div class="col-xs-12">
+              <form>
+                <input type="text" class="form-control" name="stream" id="stream0" size="30" placeholder="Topic to track sentiment">
+              </form>
+              </div>
+            </div>
+            <br />
+            <div class="row">
+              <div class="col-xs-12"><button type="button" class="btn btn-default" onclick="buttonClick()" id="add-stock-button">Start tracking</button></div>
+            </div>
+            <div class="list-group table-of-contents" id="stock-list">
+            </div>
+          </div>
+          <div class="col-xs-6">
+            <div class="row">
+              <div class="col-xs-12 text-center">
+                <h2><font-size: 1.0em>Average Sentiment</h2>
+                <!-- <div class="col-xs-12"><font size="4">Average Sentiment</div> -->
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-xs-12 text-center" id="average-side">
+                <div id="average-score"><font-size: 1.0em>N/A</div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-xs-12 text-center">
+                <div class="col-xs-12"><font-size: 0.7em>Sentiment is in range [0,1]</div>
+                <div class="col-xs-12"><font-size: 0.7em>Positive sentiment in GREEN.</div>
+                <div class="col-xs-12"><font-size: 0.7em>Negative sentiment in RED.</div>
+                <div class="col-xs-12"><font-size: 0.7em>The background change with average sentiment.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+        <div id="chart" class="col-xs-12" style="border-left: 1px solid grey">
+            <svg></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="col-xs-6">
+    <div class="row">
+      <div class="col-xs-12 text-center">
+        <h2><font-size: 2.0em>The Power Of Social Sentiment</h2>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-xs-12 text-left">
+        <div class="col-xs-12"><font-size: 1.0em>On November 11, 2013, a few minutes after 8 a.m. EST, news leaked out from a Canadian newspaper that Blackberry’s (Nasdaq:BBRY)$4.7 billion buyout had collapsed. Wall Street wouldn’t find out for a full 180 seconds, when the newswires picked up the report in real time.</div>
+        <div class="col-xs-12"><font-size: 1.0em>.   </div>
+        <div class="col-xs-12"><font-size: 1.0em>Investment clients at Dataminr, a New York City-based data analytics firm, had a leg up on the rest of the Street. They received an email alert from Dataminr within seconds of the Blackberry news appearing in the Canadian newswire, and many of those clients – especially hedge funds – used the news to short the stock ahead of the rest of the investment community, who were late getting the news on Blackberry.</div>
+        <div class="col-xs-12"><font-size: 1.0em>.   </div>
+        <div class="col-xs-12"><font-size: 1.0em>Another social media data analysis firm, Social Market Analytics, used its coverage of 400,000 Twitter (Nasdaq:TWTR) accounts last August to tell its clients that positive chatter on Apple was percolating just before legendary trader Carl Icahn issued a Twitter statement stating he had purchased a huge chunk of Apple (NYSE:AAPL) stock.</div>
+        <div class="col-xs-12"><font-size: 1.0em>.   </div>
+        <div class="col-xs-12"><font-size: 1.0em>No doubt, social media investment analysis is an ascending, but very much nascent, technology; so far it’s a winning one for Wall Street’s early birds. Should you sign up for alerts from a social media investment analysis firm? It won’t be easy; most products and services from data providers are geared toward institutional investors, not the Main Street tavern owner fiddling with his 401(k).</div>
+        <div class="col-xs-12"><font-size: 1.0em>.   </div>
+        <div class="col-xs-12"><font-size: 1.2em>SO,use this website as a handy way to track social sentiment FOR FREE! :)</div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="row">
+  <div class="col-xs-12 text-center bottom-border" id="instantaneous-side">
+    <h2><font-size: 1.5em>Instantaneous Sentiment</h2> 
+    <!-- <font size="6">Instantaneous Sentiment</div> -->
+  </div>
+</div>
+<div class="row bottom-border" id="heading">
+  <div class="col-xs-2">User</div>
+  <div class="col-xs-6">Tweet</div>
+  <div class="col-xs-1"># Positves Topics</div>
+  <div class="col-xs-1"># Negatives Topics</div>
+  <div class="col-xs-2">Overall Sentiment Score</div>
+</div>
+<div class="row">
+  <div class="col-xs-12 messages">
+    <!-- stuff gets added here for messages -->
+  </div>
+</div>
+
+<script>
+   
+  var socket = io();
+  // socket.on('news', function(message){
+  //   console.log(message);
+  //   $("#news").html(message.news); 
+    
+  // });
+
+  socket.on('tweetData', function(msg){
+    console.log(msg);
+    $("#average-score").html(msg.average); // <div id="average-score"></div>
+    $("#average-side").css("background-color","rgb(" + msg.rgbAverage.r + "," + msg.rgbAverage.g + "," + msg.rgbAverage.b + ")"); //<div class="col-xs-12 text-center" id="average-side">
+    $("body").css("background-color","rgb(" + msg.rgbAverage.r + "," + msg.rgbAverage.g + "," + msg.rgbAverage.b + ")"); //<div class="col-xs-12 text-center" id="average-side">
+    $(".messages").prepend(
+      "<div class='row text-left' style='background-color: rgb(" + msg.rgbInstantaneous.r + "," + msg.rgbInstantaneous.g + "," + msg.rgbInstantaneous.b + ");'><div class='col-xs-1'><div id='user-profile-image'><img src='" + msg.tweet.user.profile_image_url_https + "' alt='' height='20'></div></div><div class='col-xs-1'><div id='user-name'>@" + msg.tweet.user.screen_name + "</div></div><div class='col-xs-6'><div id='tweet'>" + msg.tweet.text + "</div></div><div class='col-xs-1'><div id='positive'>" + msg.positive.length + "</div></div><div class='col-xs-1'><div id='negative'>" + msg.negative.length + "</div></div><div class='col-xs-2'><div id='aggregate'>" + msg.aggregate.score + "</div></div></div>");
+  });
+  function buttonClick() {
+    var topicValue = document.getElementById('stream0').value;
+    socket.emit('streamTopic',{topic: topicValue});
+  }
+  $(document).keypress(
+    function(event){
+     if (event.which == '13') {
+        event.preventDefault();
+      }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+---
+- name: site
+  hosts: all
+  vars_files:
+  - config.yaml
+  remote_user: ec2-user
+  tasks:
+  - name: install packages
+    #sudo: yes
+    yum: name={{ item }} state=latest
+    with_items:
+      - git
+      - geos-devel
+    become: yes
+    #become_user: root
+
+  - name: install python packages
+    environment:
+      PATH: /usr/local/bin/:$PATH
+    pip: name={{ item }} state=latest
+    with_items:
+      - redis
+      - flask
+      - apscheduler
+      - kafka-python
+      - googlefinance
+    become: yes
+
+  - name: deploy SSH key
+    s3:
+      bucket: "{{ deploy_bucket }}"
+      # object: "/aws/{{ deploy_key }}"
+      object: "/user_data/{{ deploy_key }}"
+      dest: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
+      overwrite: no
+      mode: get
+
+  - name: set SSH key mode
+    file:
+      path: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
+      mode: 0600
+    become: yes
+
+  - name: deploy project repository
+    git:
+      repo: "{{ repo_url }}"
+      dest: "{{ repo_home }}"
+      version: master
+      key_file: "{{ deploy_home }}/.ssh/{{ deploy_key }}"
+      accept_hostkey: yes
+      update: yes
+
+  - name: copy awslogs configuration files
+    copy: src="{{ item }}" dest="/etc/awslogs/" owner=root mode=600
+    with_fileglob:
+      - awslogs/*
+    become: yes
+    notify: restart awslogs
+
+  - name: start awslogs service
+    service: name=awslogs state=started enabled=yes
+    # ignore_errors: yes
+    become: yes
+
+  handlers:
+  - name: restart awslogs
+    service: name=awslogs state=restarted
+    become: yes
+
+- name: webservers
+  hosts: webservers
+  vars_files:
+  - config.yaml
+  remote_user: "{{ deploy_user }}"
+  tasks:
+  - name: start nodejs
+    shell: "node index.js --redis_host=localhost --redis_port=6379 --redis_channel=stock-price"
+    args:
+      chdir: "{{ repo_home }}"
+    async: 10
+    poll: 0
