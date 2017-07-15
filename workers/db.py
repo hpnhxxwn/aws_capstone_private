@@ -54,9 +54,6 @@ def parse_argv():
     if opts.start < 0 or opts.start > opts.end:
         fatal("invalid range [%d, %d]" % (opts.start, opts.end))
 
-    opts.end = min(get_file_length(
-        opts.src, opts.color, opts.year, opts.month), opts.end)
-
     logger.setLevel(opts.verbose)
     return opts
 
