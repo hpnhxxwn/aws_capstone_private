@@ -59,7 +59,7 @@ def parse_argv():
 
 
 
-class StatDB:
+class DB:
     def __init__(self, opts):
         self.ddb = boto3.resource('dynamodb',
             region_name=opts.region, endpoint_url=opts.ddb_endpoint)
@@ -109,15 +109,11 @@ class StatDB:
                     'AttributeType': 'N'
                 },
                 {
+                    'AttributeName': 'tweet_create_time',
+                    'AttributeType': 'S'
+                },
+                {
                     'AttributeName': 'user_name',
-                    'AttributeType': 'S'
-                },
-                {
-                    'AttributeName': 'retweets',
-                    'AttributeType': 'S'
-                },
-                {
-                    'AttributeName': 'favorite',
                     'AttributeType': 'S'
                 },
                 {
@@ -125,21 +121,9 @@ class StatDB:
                     'AttributeType': 'S'
                 },
                 {
-                    'AttributeName': 'geo',
-                    'AttributeType': 'S'
-                },
-                {
-                    'AttributeName': 'mentions',
-                    'AttributeType': 'S'
-                },
-                {
                     'AttributeName': 'id',
                     'AttributeType': 'S'
                 },
-                {
-                    'AttributeName': 'link',
-                    'AttributeType': 'S'
-                }，
                 {
                     'AttributeName': 'individual_sentiment',
                     'AttributeType': 'N'
@@ -184,39 +168,51 @@ class StatDB:
             }
         )
 
+    def query(start_time, end_time, symbol):
+        print("Query tweets one hour before")
+        response = table.query(
+            ProjectionExpression="symbol, timestamp, individual_sentiment",
+            ScanIndexForward=False,
+            KeyConditionExpression=Key('symbol').eq(symbol) & Key('timestamp').ge(start_time) & Key('timestamp').lt(end_time)
+        )
+
+        return response['Items']
+
     def put_item_to_tweet_table(self, message):
         self.table_tweet_indivisual_sentiment.put_item(
             Item={
                     'symbol': message['symbol'],
                     'timestamp': message['timestamp'],
                     'user_name': message['user_name'],
-                    'retweets': message['retweets'],
-                    'favorite': message['favorite'],
+                    'tweet_create_time': message['tweet_create_time'],
+                    #'retweets': message['retweets'],
+                    #'favorite': message['favorite'],
                     'text': message['text'],
-                    'geo': message['geo'],
-                    'mentions': message['mentions'],
+                    #'geo': message['geo'],
+                    #'mentions': message['mentions'],
                     'id': message['id'],
-                    'link': message['link'],
+                    #'link': message['link'],
                     'individual_sentiment': message['individual_sentiment']
                 })
 
-    def put_item_to_sentiment_table(self, message, count):
+    def put_item_to_sentiment_table(self, ave_sent, count):
         try:
             self.table_average_sentiment.update_item(
                 Key={
                     'key': message['symbol']
                 },
-                UpdateExpression="SET count = count + :inc",
+                UpdateExpression="SET count = count + :inc, average_sentiment = :ave_sent",
                 ConditionExpression="count = :curr",
                 ExpressionAttributeValues={
                     ':inc': 1,
                     ':curr': count,
+                    ':ave_sent': ave_sent
                 },
                 ReturnValues="UPDATED_NEW"
             )
-            return 0
+            return -1
         except boto.dynamodb.exceptions.DynamoDBConditionalCheckFailedError:
-            response = self.table_tweet_indivisual_sentiment.get_item(
+            response = self.table_average_sentiment.get_item(
                 Key={
                     'symbol': message['symbol']
                 }
@@ -225,7 +221,7 @@ class StatDB:
      
     def get_item_from_tweet_table(self, timestamp):
         try:
-             response = self.table_average_sentiment.get_item(
+             response = self.table_tweet_indivisual_sentiment.get_item(
                 Key={
                     'symbol': message['symbol'],
                     'timestamp': message['timestamp']
@@ -240,11 +236,11 @@ class StatDB:
         finally:
             return response 
 
-    def get_item_from_sentiment_table(self):
+    def get_item_from_sentiment_table(self, symbol):
         try:
             response = self.table_average_sentiment.get_item(
                 Key={
-                    'symbol': message['symbol']
+                    'symbol': symbol
                 }
             )
         except botocore.exceptions.ClientError as e:
@@ -255,7 +251,7 @@ class StatDB:
             response = None
             self.table_average_sentiment.put_item(
                 Item={
-                    'symbol': message['symbol'],
+                    'symbol': symbol,
                     'count': 0,
                     'average_sentiment': 0.
                     }
